@@ -1,0 +1,116 @@
+*** Definicao dos nos globais
+.global gnd vcc vee
+.temp 25
+
+*** Circuito completo do Amplificador Diferencial
+** Transistores amplificadores: nome dreno porta fonte corpo modelo L= W=
+M1 vm vi1 vs vss CMOSN L={ln} W={wn}
+M2 vo vi1 vs vss CMOSN L={ln} W={wn}
+
+** Cargas ativas
+M3 vm vm vdd vdd CMOSP L={lp} W={wp}
+M4 vo vm vdd vdd CMOSP L={lp} W={wp}
+
+** Espelho de Polarizacao
+* Ramo de referencia com dois transistores ao inves de 1
+* Geracao de corrente de referencia unica para N e P
+MRp vbiasp vbiasp vdd vdd CMOSP L=0.6u W=60u
+MRn vbiasn vbiasn vss vss CMOSN L=0.6u W=20u
+Rref1 vbiasp vbiasn {rref}
+
+* Espelho do Amplificador Diferencial
+M1e vs vbiasn vss vss CMOSN L=0.6u W=20u
+
+*** Definicao de parametros e inclusao de arquivos
+.include ../modelos_spice/ami_c5n_tt.txt
+.param offset1=0
+.param offset2=0
+.param amp1=1
+.param amp2=0m
+.param rref=7.45821e+006
+.param lp=2u
+.param ln=2u
+.param wp=20u
+.param wn=80u
+.param vb=0
+.param rl=1
+.param vbias=-1.7
+
+*** Definicao das fontes do circuito
+** Fonte CC de alimentacao do circuito
+vdd vdd gnd dc 2.5
+vss vss gnd dc -2.5
+*vb vbias gnd dc {vbias}
+
+*vbias vbias gnd dc {vbias}
+** Fonte de sinal aplicada a entrada, senoidal com flutuacao continua
+** dada pelo valor do offset. A amplitude vem da variavel amp
+** AC 1: para analise na frequencia facilita deixar modulo 1, assim o valor
+** das tensoes e correntes ja serao os de ganho ja que sao relativos a 1.
+** Frequencia de 10 kHz.
+v1 vi1 gnd sine ({offset1} {amp1} 10k) AC 1
+v2 vi2 gnd sine ({offset2} {amp2} 10k) AC 0
+
+*** Definicao das analises
+** Analise de ponto de operacao
+.op
+*.step param lp 0.6u 1.0u 0.2u
+** com variacao da tensao de offset da fonte
+*.step param offset 0.72 0.74 0.001
+** com variacao da resistencia no dreno
+*.step param rd 10k 100k 10k
+*.step param vb -1 1 1m
+
+
+
+** Analise de transitorio temporal
+.tran 0.1M
+** com variacao da tensao de offset da fonte senoidal
+*.step param offset 0.5 0.9 0.01
+** com variacao da resistencia no dreno
+*.step param rd 10k 100k 10k
+*.step param vbias -2 -1.7 5m
+*.step param rref 49k 50k 10
+*.step param rl 1k 20k 200
+
+*.four 10k v(vo)
+
+** Definicao das medidas a serem realizadas nos sinais, dominio do tempo
+* Medicao de tensao pico-a-pico da saida
+.measure tran vopp pp v(vo)
+*.measure tran iopp pp i(Rl)
+* Medicao de tensao pico-a-pico da entrada
+.measure tran vicmpp pp v(vi1)
+* Medida dos ganhos do amplificador
+.measure tran acm param vopp/vicmpp
+*.measure tran gi param iopp/vinpp
+.measure tran vom avg v(vo)
+*.measure tran vbiasm avg v(vbias)
+*.measure tran iom avg i(vload)
+*.measure gimax when dgi=0
+
+*.tf v(vo) v1
+
+** Comando .tf para medida de ganho e impedancias com saida em corrente e entrada em tensao
+*.tf I(vload) v1
+
+** Analise de resposta em frequencia
+** So pode ser ativada se a analise transitoria estiver comentada
+*.ac dec 100 0.01 100t
+** com variacao da resistencia no dreno
+*.step param rd 10k 100k 10k
+** com variacao da tensao de offset da fonte senoidal
+*.step param offset 0.5 0.9 0.005
+*.step param rl 10k 20k 200
+
+** Definicao das medidas ano dominio da frequencia
+* Medida do ganho em corrente continua
+.measure ac ganhoccg find mag(V(vo)) at=0.1
+* Medida da frequencia de - 3 dB admitindo passa-baixas
+.measure ac fcorte when mag(V(vo))=ganhoccg/sqrt(2)
+* Medida da frequencia de zero, admitindo que ha elevacao de ganho
+.measure ac fzero when mag(V(vo))=ganhoccg*sqrt(2)
+* Medida da frequencia de ganho unitario, se a magnitude passar por zero
+.measure ac gpb when mag(V(vo))=1
+
+.END
