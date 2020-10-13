@@ -1,0 +1,104 @@
+*** Fund. de Projeto Analógico
+** Caracterização NMOS e PMOS para 
+** projeto gm/Id
+
+*** Opcoes
+** salvar as correntes para poder mostrar depois
+.options savecurrents
+.options filetype=ascii
+.temp 25
+
+
+** Circuito do Amplificador
+* Transistor amplificador com 25 fingers
+Mn vo vi gnd gnd nmos l=220n w=175u m=25
+* Transistores do espelho com 4 fingers cada
+Mp vo vm vdd vdd pmos l=250n w=17u m=4
+Mr vm vm vdd vdd pmos l=250n w=17u m=4
+Rr vm gnd {rref}
+Cl vo gnd 4p
+
+*** Parametros e Inclusoes
+.include ../modelos_spice/130nm_bulk.pm
+.param lambda=65n
+.param wn=175u
+.param wp=17u
+.param vd=1.3
+* Resistencia de referencia do projeto
+*.param rref=912
+* Resistencia de referencia ajustada
+.param rref=501
+
+vdd vdd gnd dc vd
+vin vi gnd sine (0.232 1m 1k) AC 1
+
+.end
+
+.control
+** Ajuste de opcoes
+set color0=white
+set color1=black
+*set units = degrees
+set wr_singlescale
+set wr_vecnames
+set width = 4098
+set filetype = ascii
+*set appendwrite
+
+** Parametros a serem salvos
+save all @mn[id] @mn[ibs] @mn[gm] @mn[gds] @mn[gmbs] @mn[vdsat] @mn[vth]
+				+@mn[cgs] @mn[cgd] @mn[cgb] @mn[cbd] @mn[cbs] 
+        +@mn[cdd] @mn[cgg] @mn[css] @mn[cbb] @mn[capbd] @mn[capbs]
+				+@mn[vgs] @mn[vds] @mn[vbs]
+				+@mp[id] @mp[ibs] @mp[gm] @mp[gds] @mp[gmbs] @mp[vdsat] @mp[vth]
+				+@mp[cgs] @mp[cgd] @mp[cgb] @mp[cbd] @mp[cbs] 
+        +@mp[cdd] @mp[cgg] @mp[css] @mp[cbb] @mp[capbd] @mp[capbs]
+				+@mp[vgs] @mp[vds] @mp[vbs]
+
+*op
+
+tran 1u 1m
+plot @mn[id] @mr[id]
+plot v(vo)
+
+ac dec 100 1 100g
+plot vdb(vo)
+
+* Escolhendo a analise transitoria
+setplot tran1
+echo Resultados da analise transitoria:
+* Medida do pico-a-pico da tensao de saida
+meas tran vopp pp v(vo)
+* Medida do pico-a-pico da tensao de entrada
+meas tran vipp pp v(vi)
+* Calculo do ganho
+let ganho='vopp/vipp'
+* Medida do valor medio da tensao de saida 
+meas tran vom avg v(vo)
+* Medida do valor medio da corrente dreno-fonte 
+meas tran idm avg @mn[id]
+* Medida do valor medio da transcondutancia NMOS
+meas tran gmn avg @mn[gm]
+* Medida do valor medio da transcondutancia NMOS
+meas tran gmp avg @mp[gm]
+* Calculo das eficiencias de transcondutancia
+let gmidn='gmn/idm'
+let gmidp='gmp/idm'
+* Mostrando os resultados
+echo Ganho na analise transistoria: $&ganho
+echo A eficiencia de transcondutancia NMOS vale: $&gmidn
+echo A eficiencia de transcondutancia PMOS vale: $&gmidp
+
+* Escolhendo a analise de resposta em frequencia
+setplot ac1
+echo Resultados da analise de resposta em frequencia:
+* Medida do ganho em corrente continua
+meas ac ganhocc find vdb(vo) at=1
+* Definindo o ganho esperado na frequencia de corte
+let magcorte=ganhocc-3
+* Medida da frequencia de - 3 dB admitindo passa-baixas
+meas ac fcorte when vdb(vo)=magcorte
+* Medida da frequencia de ganho unitario, se a magnitude passar por zero
+meas ac gbp when vdb(vo)=0
+
+.endc
